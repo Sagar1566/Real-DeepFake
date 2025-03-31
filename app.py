@@ -67,21 +67,27 @@ def analyze_images_with_gemini(original_path, suspected_path):
         
         # Prepare prompt for Gemini
         prompt = """
-        Analyze these two images:
+        Analyze these two images carefully:
         Image 1 is provided as the reference/original image.
         Image 2 is a suspected deepfake or manipulated version.
         
+        IMPORTANT: First determine if these are images of the same person or different people.
+        If they are clearly different people, immediately identify this as a deepfake or manipulation.
+        
         Perform a detailed analysis comparing them:
-        1. Identify signs of manipulation in the second image
-        2. Check for inconsistencies in lighting, shadows, and reflections
-        3. Look for unnatural edges, blurring, or artifacts
-        4. Examine facial proportions and features (if people are in the images)
-        5. Assess texture inconsistencies
+        1. Check if the faces appear to be the same person - different people means it's a deepfake
+        2. Identify signs of manipulation in the second image
+        3. Check for inconsistencies in lighting, shadows, and reflections
+        4. Look for unnatural edges, blurring, or artifacts
+        5. Examine facial proportions and features (eyes, nose, mouth, jawline)
+        6. Assess texture inconsistencies
         
         Conclude with: 
         1. A determination if the second image appears to be a deepfake or manipulated (yes/no)
         2. Confidence level (low/medium/high)
         3. Brief explanation of your reasoning
+        
+        If the images show completely different people, the answer MUST be "yes" (it is a deepfake) with high confidence.
         
         Format your response with clear headings and be as specific as possible.
         """
@@ -96,15 +102,36 @@ def analyze_images_with_gemini(original_path, suspected_path):
         is_deepfake = False
         confidence = "Unknown"
         
-        if "yes" in analysis.lower() and "deepfake" in analysis.lower():
-            is_deepfake = True
+        # Check for keywords that indicate different people or deepfake
+        text_lower = analysis.lower()
         
-        if "confidence" in analysis.lower():
-            if "high confidence" in analysis.lower():
+        # Strong indicators of different people/deepfake
+        if any(phrase in text_lower for phrase in [
+            "different people", 
+            "not the same person",
+            "completely different",
+            "two different individuals",
+            "different individuals"
+        ]):
+            is_deepfake = True
+            confidence = "High"
+        # Indicators of same person (non-deepfake)
+        elif "same person" in text_lower and "not a deepfake" in text_lower:
+            is_deepfake = False
+            confidence = "High" if "high confidence" in text_lower else "Medium"
+        else:
+            # Fall back to yes/no determination
+            if "yes" in text_lower and ("deepfake" in text_lower or "manipulated" in text_lower):
+                is_deepfake = True
+            elif "no" in text_lower and "not a deepfake" in text_lower:
+                is_deepfake = False
+            
+            # Extract confidence
+            if "high confidence" in text_lower:
                 confidence = "High"
-            elif "medium confidence" in analysis.lower():
+            elif "medium confidence" in text_lower:
                 confidence = "Medium"
-            elif "low confidence" in analysis.lower():
+            elif "low confidence" in text_lower:
                 confidence = "Low"
         
         return {
