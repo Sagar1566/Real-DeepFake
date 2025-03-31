@@ -29,11 +29,21 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
 # Configure Gemini API
+# Check for both potential API key environment variables
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-if not GEMINI_API_KEY:
-    logger.warning("GEMINI_API_KEY not set. The application may not function correctly.")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Use either key, with GEMINI_API_KEY taking precedence
+api_key = GEMINI_API_KEY or GOOGLE_API_KEY
+
+if not api_key:
+    logger.warning("API key not set. Please set either GEMINI_API_KEY or GOOGLE_API_KEY environment variable.")
+    logger.warning("The application will not function without a valid API key.")
+else:
+    logger.info("API key found. Configuring Gemini API.")
+
+# Configure the API with whatever key we found
+genai.configure(api_key=api_key)
 
 def allowed_file(filename):
     """Check if file has an allowed extension"""
