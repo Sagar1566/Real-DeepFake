@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Detection</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>DeepFake Detector
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="mb-0"><i class="fas fa-image me-2"></i>Deepfake Image Detection</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle me-2"></i>How it works:</h5>
+                            <ol>
+                                <li>Upload an original reference image</li>
+                                <li>Upload a suspected deepfake image</li>
+                                <li>Our system will analyze both images using Google's Gemini AI</li>
+                                <li>View detailed analysis results and detection confidence</li>
+                            </ol>
+                        </div>
+                        
+                        <form action="{{ url_for('upload_files') }}" method="post" enctype="multipart/form-data" id="upload-form">
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-secondary">
+                                            <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Original Reference Image</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="original_image" class="form-label">Upload original image:</label>
+                                                <input class="form-control" type="file" id="original_image" name="original_image" accept="image/*" required>
+                                            </div>
+                                            <div class="image-preview-container">
+                                                <div id="original-preview" class="image-preview">
+                                                    <i class="fas fa-image preview-placeholder"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-secondary">
+                                            <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>Suspected Deepfake Image</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="suspected_image" class="form-label">Upload suspected image:</label>
+                                                <input class="form-control" type="file" id="suspected_image" name="suspected_image" accept="image/*" required>
+                                            </div>
+                                            <div class="image-preview-container">
+                                                <div id="suspected-preview" class="image-preview">
+                                                    <i class="fas fa-image preview-placeholder"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button type="submit" class="btn btn-primary btn-lg w-100" id="analyze-btn">
+                                    <i class="fas fa-magnifying-glass me-2"></i>Analyze Images
+                                </button>
+                            </div>
+                            
+                            <div class="text-center d-none" id="loading-indicator">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Processing your images with Gemini AI. This may take a moment...</p>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h3 class="mb-0"><i class="fas fa-circle-info me-2"></i>About Deepfake Detection</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Deepfakes are synthetic media where a person's likeness is replaced with someone else's using artificial intelligence. This technology has raised significant concerns about misinformation and privacy.</p>
+                        
+                        <h5>How our detection works:</h5>
+                        <ul>
+                            <li>We use Google's Gemini AI to analyze and compare the images</li>
+                            <li>The system looks for inconsistencies in lighting, shadows, and textures</li>
+                            <li>It examines unnatural edges, blurring, or artifacts</li>
+                            <li>For faces, it analyzes facial proportions and features</li>
+                            <li>Results include detection confidence and detailed explanation</li>
+                        </ul>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Note:</strong> No detection system is 100% accurate. Results should be considered as an aid, not definitive proof.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container text-center">
+            <p>DeepFake Detector | Powered by Google Gemini AI</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
