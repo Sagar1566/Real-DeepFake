@@ -197,12 +197,30 @@ def upload_files():
         original_filename = secure_filename(original_file.filename)
         suspected_filename = secure_filename(suspected_file.filename)
         
-        # Create normalized paths with proper separators
-        original_path = os.path.normpath(os.path.join(app.config['UPLOAD_FOLDER'], f"original_{original_filename}"))
-        suspected_path = os.path.normpath(os.path.join(app.config['UPLOAD_FOLDER'], f"suspected_{suspected_filename}"))
+        # Check if we're running on Windows or Linux/Mac
+        is_windows = os.name == 'nt'
+        path_separator = '\\' if is_windows else '/'
         
-        # Ensure the upload directory exists
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        # Create folder path with correct separators
+        upload_folder = app.config['UPLOAD_FOLDER']
+        
+        # Print debug info about the paths
+        logger.info(f"Current platform: {os.name}, using separator: {path_separator}")
+        logger.info(f"Upload folder: {upload_folder}")
+        
+        # Ensure the upload directory exists (using raw strings to avoid escape issues)
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # Create file paths with explicit separators
+        original_path = os.path.join(upload_folder, f"original_{original_filename}")
+        suspected_path = os.path.join(upload_folder, f"suspected_{suspected_filename}")
+        
+        # Final normalization to ensure consistency
+        original_path = os.path.normpath(original_path)
+        suspected_path = os.path.normpath(suspected_path)
+        
+        logger.info(f"Saving original file to: {original_path}")
+        logger.info(f"Saving suspected file to: {suspected_path}")
         
         # Save files
         original_file.save(original_path)
@@ -215,10 +233,21 @@ def upload_files():
         # Analyze images using Gemini API
         results = analyze_images_with_gemini(original_path, suspected_path)
         
+        # Get base filenames for more reliable storage in session
+        original_basename = os.path.basename(original_path)
+        suspected_basename = os.path.basename(suspected_path)
+        
         # Save results to session
         session['analysis_results'] = results
+        
+        # Store both full path and basename to provide fallback options
         session['original_path'] = original_path
         session['suspected_path'] = suspected_path
+        session['original_basename'] = original_basename
+        session['suspected_basename'] = suspected_basename
+        
+        logger.info(f"Stored in session - original: {original_path}, basename: {original_basename}")
+        logger.info(f"Stored in session - suspected: {suspected_path}, basename: {suspected_basename}")
         
         return redirect(url_for('results'))
     
@@ -239,26 +268,97 @@ def results():
     original_path = session.get('original_path', '')
     suspected_path = session.get('suspected_path', '')
     
+    # Get basenames for fallback
+    original_basename = session.get('original_basename', '')
+    suspected_basename = session.get('suspected_basename', '')
+    
+    logger.info(f"Retrieved from session - original path: {original_path}")
+    logger.info(f"Retrieved from session - suspected path: {suspected_path}")
+    logger.info(f"Retrieved from session - original basename: {original_basename}")
+    logger.info(f"Retrieved from session - suspected basename: {suspected_basename}")
+    
     # Read image files for display
     original_image = None
     suspected_image = None
     
     try:
+        # Check platform and normalize paths
+        is_windows = os.name == 'nt'
+        logger.info(f"Reading images on platform: {os.name}")
+        
         # Normalize paths again to ensure consistency
         original_path = os.path.normpath(original_path)
         suspected_path = os.path.normpath(suspected_path)
         
+        logger.info(f"Attempting to read original image from: {original_path}")
+        logger.info(f"Attempting to read suspected image from: {suspected_path}")
+        
+        # Check if the paths exist
+        # Try multiple approaches to find the original image
+        image_found = False
+        
+        # Try 1: Direct path from session
         if os.path.exists(original_path):
+            logger.info(f"Original image found at {original_path}")
             with open(original_path, 'rb') as f:
                 original_image = base64.b64encode(f.read()).decode('utf-8')
-        else:
-            logger.warning(f"Original image file not found: {original_path}")
+            image_found = True
         
+        # Try 2: Using basename in uploads folder
+        if not image_found:
+            fallback_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(original_path))
+            logger.info(f"Trying fallback path: {fallback_path}")
+            if os.path.exists(fallback_path):
+                with open(fallback_path, 'rb') as f:
+                    original_image = base64.b64encode(f.read()).decode('utf-8')
+                logger.info("Found original image using path basename fallback")
+                image_found = True
+        
+        # Try 3: Using stored basename
+        if not image_found and original_basename:
+            fallback_path = os.path.join(app.config['UPLOAD_FOLDER'], original_basename)
+            logger.info(f"Trying stored basename fallback: {fallback_path}")
+            if os.path.exists(fallback_path):
+                with open(fallback_path, 'rb') as f:
+                    original_image = base64.b64encode(f.read()).decode('utf-8')
+                logger.info("Found original image using stored basename fallback")
+                image_found = True
+        
+        if not image_found:
+            logger.error("Could not find original image using any available method")
+        
+        # Same approach for the suspected image
+        image_found = False
+        
+        # Try 1: Direct path from session
         if os.path.exists(suspected_path):
+            logger.info(f"Suspected image found at {suspected_path}")
             with open(suspected_path, 'rb') as f:
                 suspected_image = base64.b64encode(f.read()).decode('utf-8')
-        else:
-            logger.warning(f"Suspected image file not found: {suspected_path}")
+            image_found = True
+        
+        # Try 2: Using basename in uploads folder
+        if not image_found:
+            fallback_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(suspected_path))
+            logger.info(f"Trying fallback path: {fallback_path}")
+            if os.path.exists(fallback_path):
+                with open(fallback_path, 'rb') as f:
+                    suspected_image = base64.b64encode(f.read()).decode('utf-8')
+                logger.info("Found suspected image using path basename fallback")
+                image_found = True
+        
+        # Try 3: Using stored basename
+        if not image_found and suspected_basename:
+            fallback_path = os.path.join(app.config['UPLOAD_FOLDER'], suspected_basename)
+            logger.info(f"Trying stored basename fallback: {fallback_path}")
+            if os.path.exists(fallback_path):
+                with open(fallback_path, 'rb') as f:
+                    suspected_image = base64.b64encode(f.read()).decode('utf-8')
+                logger.info("Found suspected image using stored basename fallback")
+                image_found = True
+        
+        if not image_found:
+            logger.error("Could not find suspected image using any available method")
     except Exception as e:
         logger.error(f"Error reading image files: {e}")
     
