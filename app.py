@@ -18,9 +18,12 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "deepfake-detection-secret-key")
 
 # Configure upload settings
-UPLOAD_FOLDER = '/tmp'
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB limit
+
+# Create upload folder if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
@@ -44,11 +47,18 @@ def encode_image(image_path):
 def resize_image_if_needed(file_path, max_size=(1024, 1024)):
     """Resize image if it's too large for the API"""
     try:
+        # Normalize the path to handle OS-specific path separators
+        file_path = os.path.normpath(file_path)
+        
+        logger.info(f"Checking if image needs resizing: {file_path}")
+        
         img = Image.open(file_path)
         if img.width > max_size[0] or img.height > max_size[1]:
             img.thumbnail(max_size, Image.LANCZOS)
             img.save(file_path)
             logger.info(f"Image resized to {img.size}")
+        else:
+            logger.info(f"No resize needed, image is {img.size}")
     except Exception as e:
         logger.error(f"Error resizing image: {e}")
 
@@ -58,6 +68,12 @@ def analyze_images_with_gemini(original_path, suspected_path):
     compared to the first (original) image
     """
     try:
+        # Normalize paths to prevent OS-specific path separator issues
+        original_path = os.path.normpath(original_path)
+        suspected_path = os.path.normpath(suspected_path)
+        
+        logger.info(f"Analyzing images from: {original_path} and {suspected_path}")
+        
         # Configure the model
         model = genai.GenerativeModel('gemini-1.5-flash')
         
@@ -181,9 +197,14 @@ def upload_files():
         original_filename = secure_filename(original_file.filename)
         suspected_filename = secure_filename(suspected_file.filename)
         
-        original_path = os.path.join(app.config['UPLOAD_FOLDER'], f"original_{original_filename}")
-        suspected_path = os.path.join(app.config['UPLOAD_FOLDER'], f"suspected_{suspected_filename}")
+        # Create normalized paths with proper separators
+        original_path = os.path.normpath(os.path.join(app.config['UPLOAD_FOLDER'], f"original_{original_filename}"))
+        suspected_path = os.path.normpath(os.path.join(app.config['UPLOAD_FOLDER'], f"suspected_{suspected_filename}"))
         
+        # Ensure the upload directory exists
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
+        # Save files
         original_file.save(original_path)
         suspected_file.save(suspected_path)
         
@@ -223,13 +244,21 @@ def results():
     suspected_image = None
     
     try:
+        # Normalize paths again to ensure consistency
+        original_path = os.path.normpath(original_path)
+        suspected_path = os.path.normpath(suspected_path)
+        
         if os.path.exists(original_path):
             with open(original_path, 'rb') as f:
                 original_image = base64.b64encode(f.read()).decode('utf-8')
+        else:
+            logger.warning(f"Original image file not found: {original_path}")
         
         if os.path.exists(suspected_path):
             with open(suspected_path, 'rb') as f:
                 suspected_image = base64.b64encode(f.read()).decode('utf-8')
+        else:
+            logger.warning(f"Suspected image file not found: {suspected_path}")
     except Exception as e:
         logger.error(f"Error reading image files: {e}")
     
