@@ -59,7 +59,7 @@ def analyze_images_with_gemini(original_path, suspected_path):
     """
     try:
         # Configure the model
-        model = genai.GenerativeModel('gemini-pro-vision')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Load images
         original_img = Image.open(original_path)
