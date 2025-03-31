@@ -100,7 +100,7 @@ def analyze_images_with_gemini(original_path, suspected_path):
         
         # Extract determination
         is_deepfake = False
-        confidence = "Unknown"
+        confidence = "Medium"  # Default to Medium instead of Unknown
         
         # Check for keywords that indicate different people or deepfake
         text_lower = analysis.lower()
@@ -145,7 +145,7 @@ def analyze_images_with_gemini(original_path, suspected_path):
         return {
             "error": str(e),
             "is_deepfake": None,
-            "confidence": None,
+            "confidence": "Medium",  # Default to Medium even on error
             "analysis": f"Error during analysis: {str(e)}"
         }
 
